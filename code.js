@@ -16,7 +16,7 @@ const BALL_DIAMETER = 50;
 const BALL_RADIUS = BALL_DIAMETER / 2;
 const INITIAL_X = FRAME_WIDTH / 2 - BALL_RADIUS;
 const INITIAL_Y = FRAME_HEIGHT / 2 - BALL_RADIUS;
-const INITIAL_VX = 10;
+const INITIAL_VX = 0; // TODO: change this back
 const INITIAL_VY = -10;
 const PADDLE_INITIAL_X = FRAME_WIDTH / 2;
 const PADDLE_HEIGHT = FRAME_HEIGHT / 8;
@@ -39,6 +39,7 @@ var PADDLE_POSITION;
     PADDLE_POSITION[PADDLE_POSITION["BOTTOM"] = 1] = "BOTTOM";
 })(PADDLE_POSITION || (PADDLE_POSITION = {}));
 function Widget() {
+    // Ball state
     const [position, setPosition] = useSyncedState("position", {
         x: INITIAL_X,
         y: INITIAL_Y,
@@ -47,9 +48,12 @@ function Widget() {
         vx: INITIAL_VX,
         vy: INITIAL_VY,
     });
+    // General game state
     const [gameState, setGameState] = useSyncedState("gamestate", GAME_STATE.DONE);
     const [lastPingTime, setLastPingTime] = useSyncedState("pingtime", 0);
+    const [iframePromise, setIFramePromise] = useSyncedState("iframe", null);
     const players = useSyncedMap("playerMap");
+    // Widget info
     const widgetId = useWidgetId();
     const { x, y } = position;
     const { vx, vy } = velocity;
@@ -100,8 +104,9 @@ function Widget() {
                 }
             }
         });
+        // Update ball positioning and velocity.
+        // Basic collision detection.
         figma.ui.onmessage = (message) => {
-            // Update game state
             const currentPingTime = Date.now();
             if (message === "ping" &&
                 !shouldDebounce(lastPingTime, currentPingTime)) {
@@ -195,24 +200,25 @@ function Widget() {
         setGameState(newGameState);
         switch (newGameState) {
             case GAME_STATE.RUNNING:
-                // Start ball animation from iframe
-                return new Promise((resolve) => {
+                // Start ball animation
+                if (iframePromise)
+                    return iframePromise;
+                const promise = new Promise((resolve) => {
                     figma.showUI(__html__, { visible: false });
                 });
-                break;
+                setIFramePromise(promise); // one per widget, so it doesn't get jittery with multiple users
+                return promise;
             case GAME_STATE.DONE:
                 // Reset some state
                 setPosition({ x: INITIAL_X, y: INITIAL_Y });
+                if (iframePromise) {
+                    Promise.resolve(iframePromise);
+                    setIFramePromise(null);
+                }
                 figma.closePlugin();
                 break;
         }
     });
-    /*
-      [TODOs]
-      * Perf!
-        * Cursor movt synced with paddle movt smoothing
-        * Ball movt not jittery
-    */
     const GameFrame = (paddles) => {
         return (figma.widget.h(AutoLayout, { direction: "horizontal", verticalAlignItems: "center", horizontalAlignItems: "center", onClick: toggleGame, fill: "#0073cf" },
             figma.widget.h(Frame, { width: FRAME_WIDTH, height: FRAME_HEIGHT },

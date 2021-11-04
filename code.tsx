@@ -25,7 +25,7 @@ const BALL_RADIUS = BALL_DIAMETER / 2
 const INITIAL_X = FRAME_WIDTH / 2 - BALL_RADIUS
 const INITIAL_Y = FRAME_HEIGHT / 2 - BALL_RADIUS
 
-const INITIAL_VX = 10
+const INITIAL_VX = 0 // TODO: change this back
 const INITIAL_VY = -10
 
 const PADDLE_INITIAL_X = FRAME_WIDTH / 2
@@ -58,6 +58,7 @@ type PlayerObject = {
 }
 
 function Widget() {
+  // Ball state
   const [position, setPosition] = useSyncedState("position", {
     x: INITIAL_X,
     y: INITIAL_Y,
@@ -66,9 +67,17 @@ function Widget() {
     vx: INITIAL_VX,
     vy: INITIAL_VY,
   })
+
+  // General game state
   const [gameState, setGameState] = useSyncedState("gamestate", GAME_STATE.DONE)
   const [lastPingTime, setLastPingTime] = useSyncedState("pingtime", 0)
+  const [iframePromise, setIFramePromise] = useSyncedState<Promise<any>>(
+    "iframe",
+    null
+  )
   const players = useSyncedMap<PlayerObject>("playerMap")
+
+  // Widget info
   const widgetId = useWidgetId()
 
   const { x, y } = position
@@ -132,8 +141,9 @@ function Widget() {
       }
     })
 
+    // Update ball positioning and velocity.
+    // Basic collision detection.
     figma.ui.onmessage = (message) => {
-      // Update game state
       const currentPingTime = Date.now()
       if (
         message === "ping" &&
@@ -242,25 +252,24 @@ function Widget() {
 
     switch (newGameState) {
       case GAME_STATE.RUNNING:
-        // Start ball animation from iframe
-        return new Promise((resolve) => {
+        // Start ball animation
+        if (iframePromise) return iframePromise
+        const promise = new Promise((resolve) => {
           figma.showUI(__html__, { visible: false })
         })
-        break
+        setIFramePromise(promise) // one per widget, so it doesn't get jittery with multiple users
+        return promise
       case GAME_STATE.DONE:
         // Reset some state
         setPosition({ x: INITIAL_X, y: INITIAL_Y })
+        if (iframePromise) {
+          Promise.resolve(iframePromise)
+          setIFramePromise(null)
+        }
         figma.closePlugin()
         break
     }
   }
-
-  /*
-    [TODOs]
-    * Perf!
-      * Cursor movt synced with paddle movt smoothing
-      * Ball movt not jittery
-  */
 
   const GameFrame = (paddles: any) => {
     return (
