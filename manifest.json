@@ -1,0 +1,13 @@
+{
+  "name": "pong",
+  "id": "1037763975533881187",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": [
+    "figjam"
+  ],
+  "containsWidget": true,
+  "widgetApi": "1.0.0",
+  "permissions": ["currentuser", "activeusers"]
+}
